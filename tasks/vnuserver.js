@@ -36,8 +36,9 @@ module.exports = function (grunt) {
                 if (err) {
                     throw err;
                 }
-                if (java.version[0] !== '1' || (java.version[0] === '1' && java.version[2] < '8')) {
-                    throw new Error('\nUnsupported Java version used: ' + java.version + '. v1.8 is required!');
+                const [majorVersion, minorVersion] = java.version.split('.').map(Number);
+                if ((majorVersion !== 1 && majorVersion < 8) || (majorVersion === 1 && minorVersion < 8)) {
+                    throw new Error(`\nUnsupported Java version used: ${java.version}. Java 8 environment or up is required!`);
                 }
                 let args = [(java.arch === 'ia32' ? '-Xss512k' : ''), '-cp', jar, 'nu.validator.servlet.Main', opt.port].filter(x => x);
                 let vnustartup = grunt.log.write('Starting vnuserver...');
@@ -46,12 +47,14 @@ module.exports = function (grunt) {
                         done(false);
                     }
                 });
-                child.stderr.on('data', function (chunk) {
-                    if (chunk.toString().indexOf('INFO:oejs.Server:main: Started') >= 0) {
+                child.stdout.on('data', function (chunk) {
+                    if (chunk.toString().indexOf('Checker service started at') >= 0) {
                         vnustartup.ok();
                         done();
                     }
-                    if (chunk.toString().indexOf('java.net.BindException: Address already in use') >= 0) {
+                });
+                child.stdout.on('data', function (chunk) {
+                    if (chunk.toString().indexOf('java.io.IOException: Failed to bind to') >= 0) {
                         vnustartup.error();
                         done(Error('Port ' + opt.port + ' in use. Shutting down.'));
                         cleanup();
